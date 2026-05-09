@@ -1,0 +1,26 @@
+# Editor
+.idea/
+.vscode/
+.DS_Store
+
+# Node
+node_modules/
+dist/
+build/
+.next/
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Controller-managed
+.worktrees/
+.controller/state-cache.json
+
+# Env / secrets
+.env
+.env.local
+*.local
