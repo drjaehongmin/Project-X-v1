@@ -1,0 +1,11 @@
+DROP FUNCTION IF EXISTS app_is_facility_staff(uuid);
+DROP FUNCTION IF EXISTS app_can_access_patient(uuid);
+DROP FUNCTION IF EXISTS app_has_break_glass(uuid);
+DROP FUNCTION IF EXISTS app_is_self_patient(uuid);
+DROP FUNCTION IF EXISTS app_is_on_care_team(uuid);
+DROP FUNCTION IF EXISTS app_is_admin();
+DROP FUNCTION IF EXISTS app_has_role(text);
+DROP FUNCTION IF EXISTS app_break_glass_active();
+DROP FUNCTION IF EXISTS app_current_roles();
+DROP FUNCTION IF EXISTS app_current_facility_id();
+DROP FUNCTION IF EXISTS app_current_user_id();

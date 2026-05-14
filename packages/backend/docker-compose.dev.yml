@@ -1,0 +1,34 @@
+# Local Postgres for backend development. Not for production.
+# Brought up by `pnpm --filter @emr/backend db:up`.
+#
+# Notes:
+# - The volume is named so `docker compose down -v` is the one and only
+#   way to wipe state. A plain `down` keeps data.
+# - Postgres 16 has `gen_random_uuid()` built in via pgcrypto, which
+#   migration 0001 enables.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: emr-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: emr
+      POSTGRES_PASSWORD: emr
+      POSTGRES_DB: emr
+      # UTC inside the container; application stores timestamptz, so
+      # client timezone is what matters in practice.
+      TZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - emr-postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emr -d emr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  emr-postgres-dev-data:
+    name: emr-postgres-dev-data

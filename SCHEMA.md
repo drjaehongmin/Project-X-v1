@@ -44,7 +44,7 @@ Columns:
 ### user_roles
 - `user_id` uuid, FK → users(id), ON DELETE CASCADE
 - `role_id` uuid, FK → roles(id), ON DELETE CASCADE
-- `location_id` uuid, FK → facilities(id), nullable (role scoped to location, which can be vessel)
+- `facility_id` uuid, FK → facilities(id), nullable (role scoped to a facility, which can be a vessel or land-based site; null = global role)
 - PK (`user_id`, `role_id`, `facility_id`)
 
 ### sessions
@@ -58,7 +58,7 @@ Columns:
 
 **RLS:**
 - `users`: a user can SELECT/UPDATE their own row; admins SELECT all.
-- `user_roles`: SELECT limited to the same facility's admins; users see their own roles.
+- `user_roles`: SELECT limited to the same facility's admins (or global admins when `facility_id IS NULL`); users see their own roles.
 - `sessions`: only the owning user; admins read-only for audit.
 
 ---
@@ -68,10 +68,30 @@ Columns:
 ### facilities
 - `id` uuid, PK
 - `name` varchar(200), NOT NULL
+- `facility_type` enum(`vessel`, `clinic`, `hospital`, `office`, `other`), NOT NULL
 - `address` text
 - `phone` varchar(20)
 - `npi` varchar(10), UNIQUE, nullable
 - `timezone` varchar(64), NOT NULL
+
+### vessels
+Vessel-specific attributes. One row per ship, linked to its `facilities` row. Only present when `facilities.facility_type = 'vessel'`; land-based facilities have no `vessels` row.
+
+- `id` uuid, PK
+- `facility_id` uuid, FK → facilities(id), UNIQUE, NOT NULL
+- `brand` varchar(150) (cruise line / operating brand, e.g., `Royal Caribbean`)
+- `vessel_class` varchar(100) (ship class, e.g., `Oasis-class`)
+- `year_built` smallint, CHECK between 1800 and extract(year from current_date) + 5
+- `imo_number` varchar(15), UNIQUE, NOT NULL (IMO ship identification number)
+- `flag_country` varchar(2) (ISO 3166-1 alpha-2 of the flag state)
+- `guest_capacity` integer, CHECK >= 0
+- `crew_capacity` integer, CHECK >= 0
+- `gross_tonnage` integer, CHECK >= 0 (GT, ITC '69)
+- `current_latitude` numeric(9,6), CHECK between -90 and 90
+- `current_longitude` numeric(9,6), CHECK between -180 and 180
+- `position_recorded_at` timestamptz, nullable (when `current_latitude`/`current_longitude` were last updated)
+
+Note: enforcing `facility_type = 'vessel'` for the linked facility is handled by an application-level check or trigger (SQL `CHECK` cannot reference another row). Position history is not retained here; if voyage tracking is needed later, add a separate `vessel_positions` ledger table.
 
 ### departments
 - `id` uuid, PK
@@ -106,6 +126,7 @@ Columns:
 
 **RLS:**
 - All facility/provider tables: SELECT for users with role at the facility; modify by facility admins only.
+- `vessels`: inherits the linked facility's policy via `facility_id` (no separate scoping).
 
 ---
 
@@ -128,7 +149,15 @@ Columns:
 - `ssn_encrypted` bytea, nullable
 - `deceased_at` timestamptz, nullable
 - `merged_into_id` uuid, FK → patients(id), nullable (for merged duplicates)
+- `nationality` varchar(2), nullable (ISO 3166-1 alpha-2)
+- `country_of_residence` varchar(2), nullable (ISO 3166-1 alpha-2)
+- `crew_id` varchar(50), nullable (cruise-line crew identifier; null for guests / land-based patients)
+- `employment_position` varchar(150), nullable (e.g., `Chef de Partie`, `Bridge Officer`)
+- `employment_department` varchar(100), nullable (e.g., `Galley`, `Deck`, `Entertainment`)
+- `date_of_joining` date, nullable (crew sign-on date)
+- `date_of_departure` date, nullable (crew sign-off / planned disembarkation)
 - CHECK (`date_of_birth` <= current_date)
+- CHECK (`date_of_departure` IS NULL OR `date_of_joining` IS NULL OR `date_of_departure` >= `date_of_joining`)
 
 ### patient_addresses
 - `id` uuid, PK
@@ -139,7 +168,7 @@ Columns:
 - `city` varchar(100), NOT NULL
 - `state` varchar(50), NOT NULL
 - `postal_code` varchar(20), NOT NULL
-- `country` varchar(2), default `US`
+- `country` varchar(2), NOT NULL (ISO 3166-1 alpha-2; no default — populated per patient since the patient base is international)
 - `is_primary` boolean, default false
 
 ### patient_contacts
@@ -342,10 +371,11 @@ Columns:
 ### referrals
 - `id` uuid, PK
 - `order_id` uuid, FK → orders(id), UNIQUE
-- `referred_to_provider_id` uuid, FK → providers(id), nullable
-- `external_provider_name` varchar(200)
+- `referred_to_provider_id` uuid, FK → providers(id), nullable (internal provider)
+- `external_provider_id` uuid, FK → external_providers(id), nullable (outside provider — see Section 16)
 - `reason` text
 - `status` enum(`pending`, `accepted`, `completed`, `declined`)
+- CHECK (`referred_to_provider_id` IS NOT NULL OR `external_provider_id` IS NOT NULL)
 
 **RLS:** patient-scoped; ordering provider sees own; care team sees patient's orders.
 
@@ -369,6 +399,8 @@ Columns:
 - `drug_b_id` uuid, FK → drug_catalog(id)
 - `severity` enum(`minor`, `moderate`, `major`, `contraindicated`)
 - `description` text
+- CHECK (`drug_a_id` <> `drug_b_id`)
+- CHECK (`drug_a_id` < `drug_b_id`) (canonical ordering — prevents storing the same pair as both (A,B) and (B,A); callers must normalize before insert)
 - UNIQUE (`drug_a_id`, `drug_b_id`)
 
 ### formulary_entries
@@ -515,6 +547,8 @@ Columns:
 - `total_amount` numeric(12,2), NOT NULL (generated: units * unit_amount)
 - `modifiers` varchar(20)[]
 - `status` enum(`draft`, `posted`, `billed`, `paid`, `voided`)
+- `inventory_item_id` uuid, FK → inventory_items(id), nullable (set when the charge was triggered by inventory consumption — see Section 19)
+- `inventory_transaction_id` bigint, FK → inventory_transactions(id), nullable (the specific consumption event that produced this charge)
 
 ### claims
 - `id` uuid, PK
@@ -933,15 +967,29 @@ Columns:
 ## 16. Case Management
 
 ### external_providers
+Outside clinicians and facilities the EMR refers patients to or coordinates with — port hospitals, shoreside specialists, telemedicine partners, land-based clinics. Used by case management (referrals, records exchange) and by case_external_encounters.
+
 - `id` uuid, PK
-- `name` varchar(200), NOT NULL
+- `name` varchar(200), NOT NULL (provider or facility name)
 - `npi` varchar(10), nullable
 - `organization` varchar(200)
 - `specialty` varchar(100)
+- `services_offered` text[] (e.g., `cardiology`, `emergency`, `radiology`, `dental`)
 - `phone` varchar(20)
 - `email` varchar(320)
 - `fax` varchar(20)
-- `address` text
+- `address_line1` varchar(200)
+- `address_line2` varchar(200)
+- `city` varchar(100)
+- `state` varchar(100)
+- `postal_code` varchar(20)
+- `country` varchar(2) (ISO 3166-1 alpha-2)
+- `contact_name` varchar(200) (primary point of contact at the organization)
+- `contact_role` varchar(100) (e.g., `Referral Coordinator`, `Practice Manager`)
+- `contact_phone` varchar(20)
+- `contact_email` varchar(320)
+- `latitude` numeric(9,6), CHECK between -90 and 90
+- `longitude` numeric(9,6), CHECK between -180 and 180
 - `is_active` boolean, default true
 
 ### cases

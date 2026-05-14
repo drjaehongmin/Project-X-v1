@@ -10,6 +10,13 @@ build/
 .next/
 .cache/
 
+# TypeScript
+*.tsbuildinfo
+.tsbuildinfo
+
+# ESLint
+.eslintcache
+
 # Python
 __pycache__/
 *.pyc

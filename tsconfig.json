@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/module-sdk" },
+    { "path": "packages/shared" },
+    { "path": "packages/services" },
+    { "path": "packages/data-client" },
+    { "path": "packages/backend" },
+    { "path": "packages/shell" },
+    { "path": "packages/modules/_template" }
+  ]
+}

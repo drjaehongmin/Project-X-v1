@@ -1,0 +1,2 @@
+-- Extensions are kept across migrations; dropping them on rollback can
+-- break unrelated objects that depend on them. Intentional no-op.

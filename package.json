@@ -1,0 +1,37 @@
+{
+  "name": "@emr/root",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cruise Ship EMR — modular monorepo root.",
+  "packageManager": "pnpm@9.7.0",
+  "engines": {
+    "node": ">=20.10.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs --max-warnings 0",
+    "typecheck": "tsc -b",
+    "test": "pnpm -r run test",
+    "dev": "pnpm --filter @emr/shell run dev",
+    "new-module": "tsx tools/new-module.ts",
+    "db-create-admin": "tsx tools/db-create-admin.ts",
+    "db-create-patient": "tsx tools/db-create-patient.ts",
+    "ci": "bash tools/ci.sh",
+    "clean": "pnpm -r exec rm -rf dist .tsbuildinfo"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.6",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser": "^7.13.0",
+    "argon2": "^0.40.3",
+    "eslint": "^8.57.0",
+    "eslint-import-resolver-typescript": "^3.6.1",
+    "eslint-plugin-boundaries": "^4.2.2",
+    "eslint-plugin-import": "^2.29.1",
+    "pg": "^8.12.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.4.5"
+  }
+}
