@@ -4,6 +4,11 @@ All notable changes to this project are recorded here. The `## Unreleased` secti
 
 ## Unreleased
 
+
+## 2026-05-14
+
+_Pushed at 11:09_
+
 - **Documentation pass — module-build runbook + DataService reference.** Two new docs make the project safe to build modules in fresh Claude Code sessions without context drift:
   - **`docs/runbooks/add-module.md`** — the end-to-end recipe for adding a frontend module: scope picking, `pnpm new-module`, manifest fields, hook usage, `DataService` calls, audit, navigation, permissions, per-module docs, time budget, anti-patterns. Mirrors the `add-resource.md` style.
   - **`docs/data-service.md`** — reference for the `DataService` contract every module touches. Covers the `RESOURCE_PATHS` map, `read/search/write/delete` semantics, the `id`-present → PATCH vs absent → POST write dispatch, the `as unknown as <T>` cast convention at call sites, `AbortSignal` handling, 401 refresh, the `X-Module-Id` header, and fixture-vs-HTTP behavior.
